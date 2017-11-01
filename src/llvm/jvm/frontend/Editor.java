@@ -30,6 +30,15 @@
  */
 package llvm.jvm.frontend;
 
+import java.awt.Font;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.logging.Level;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import org.fife.ui.rtextarea.*;
 import org.fife.ui.rsyntaxtextarea.*;
 
@@ -38,6 +47,8 @@ import org.fife.ui.rsyntaxtextarea.*;
  * @author Louis Jenkins
  */
 public class Editor extends javax.swing.JFrame {
+    
+    private RSyntaxTextArea editor;
 
     /**
      * Creates new form Editor
@@ -45,16 +56,18 @@ public class Editor extends javax.swing.JFrame {
     public Editor() {
         initComponents();
         
-        RSyntaxTextArea textArea = new RSyntaxTextArea(20, 60);
-        textArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVA);
-        textArea.setCodeFoldingEnabled(true);
-        RTextScrollPane sp = new RTextScrollPane(textArea);
+        editor = new RSyntaxTextArea(20, 60);
+        editor.setFont(new Font("Arial", Font.PLAIN, 20));
+        editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVA);
+        editor.setCodeFoldingEnabled(true);
+        RTextScrollPane sp = new RTextScrollPane(editor);
         TextEditorPanel.add(sp);
 
         setTitle("Text Editor Demo");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         pack();
         setLocationRelativeTo(null);
+        
     }
 
     /**
@@ -72,7 +85,7 @@ public class Editor extends javax.swing.JFrame {
         jTabbedPane1 = new javax.swing.JTabbedPane();
         jPanel2 = new javax.swing.JPanel();
         jScrollPane3 = new javax.swing.JScrollPane();
-        jTextArea3 = new javax.swing.JTextArea();
+        OutputBytecode = new javax.swing.JTextArea();
         jPanel3 = new javax.swing.JPanel();
         jScrollPane2 = new javax.swing.JScrollPane();
         jTextArea2 = new javax.swing.JTextArea();
@@ -80,16 +93,19 @@ public class Editor extends javax.swing.JFrame {
         jPanel5 = new javax.swing.JPanel();
         jScrollPane1 = new javax.swing.JScrollPane();
         jTextArea1 = new javax.swing.JTextArea();
+        jMenuBar1 = new javax.swing.JMenuBar();
+        jMenu1 = new javax.swing.JMenu();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setBackground(new java.awt.Color(0, 0, 0));
 
         TextEditorPanel.setLayout(new java.awt.BorderLayout());
 
-        jTextArea3.setEditable(false);
-        jTextArea3.setColumns(20);
-        jTextArea3.setRows(5);
-        jScrollPane3.setViewportView(jTextArea3);
+        OutputBytecode.setEditable(false);
+        OutputBytecode.setColumns(20);
+        OutputBytecode.setFont(new java.awt.Font("Arial", 0, 14)); // NOI18N
+        OutputBytecode.setRows(5);
+        jScrollPane3.setViewportView(OutputBytecode);
 
         javax.swing.GroupLayout jPanel2Layout = new javax.swing.GroupLayout(jPanel2);
         jPanel2.setLayout(jPanel2Layout);
@@ -99,7 +115,7 @@ public class Editor extends javax.swing.JFrame {
         );
         jPanel2Layout.setVerticalGroup(
             jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jScrollPane3, javax.swing.GroupLayout.DEFAULT_SIZE, 514, Short.MAX_VALUE)
+            .addComponent(jScrollPane3, javax.swing.GroupLayout.DEFAULT_SIZE, 488, Short.MAX_VALUE)
         );
 
         jTabbedPane1.addTab("ByteCode", jPanel2);
@@ -117,7 +133,7 @@ public class Editor extends javax.swing.JFrame {
         );
         jPanel3Layout.setVerticalGroup(
             jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jScrollPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 514, Short.MAX_VALUE)
+            .addComponent(jScrollPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 488, Short.MAX_VALUE)
         );
 
         jTabbedPane1.addTab("LLVM IR (Unoptimized)", jPanel3);
@@ -130,7 +146,7 @@ public class Editor extends javax.swing.JFrame {
         );
         jPanel5Layout.setVerticalGroup(
             jPanel5Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 514, Short.MAX_VALUE)
+            .addGap(0, 488, Short.MAX_VALUE)
         );
 
         jTextArea1.setEditable(false);
@@ -155,6 +171,21 @@ public class Editor extends javax.swing.JFrame {
 
         jTabbedPane1.addTab("LLVM IR (Optimized)", jPanel4);
 
+        jMenu1.setText("Run");
+        jMenu1.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                jMenu1MouseClicked(evt);
+            }
+        });
+        jMenu1.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jMenu1ActionPerformed(evt);
+            }
+        });
+        jMenuBar1.add(jMenu1);
+
+        setJMenuBar(jMenuBar1);
+
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
@@ -172,6 +203,67 @@ public class Editor extends javax.swing.JFrame {
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
+
+    private void jMenu1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jMenu1ActionPerformed
+        System.out.println(TextEditorPanel.toString());
+    }//GEN-LAST:event_jMenu1ActionPerformed
+
+    private void jMenu1MouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_jMenu1MouseClicked
+        try {
+            String txt = editor.getText();
+            File tmpDir = Files.createTempDirectory("tmp").toFile();
+            File tmpFile = File.createTempFile("tmp", ".java", tmpDir);
+            FileWriter writer = new FileWriter(tmpFile);
+            writer.write(txt);
+            writer.close();
+            
+            String filePath = tmpFile.getAbsolutePath();
+            System.out.println("File Path: " + filePath);
+            Process javac = new ProcessBuilder()
+                    .command("javac", filePath)
+                    .directory(tmpDir)
+                    .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                    .redirectError(ProcessBuilder.Redirect.INHERIT)
+                    .start();
+            
+            javac.waitFor();
+            System.out.println("Exit value: " + javac.exitValue());
+            
+            // Find the generated '.class' file...
+            File classFile = Files.list(tmpDir.toPath())
+                    .filter(f -> f.toAbsolutePath()
+                            .toString()
+                            .endsWith(".class")
+                    )
+                    .map(Path::toFile)
+                    .findAny()
+                    .orElse(null);
+            
+            System.out.println("ClassFile: " + classFile.getName());
+            
+            filePath = classFile.getAbsolutePath();
+            File outputFile = File.createTempFile("out", ".txt", tmpDir);
+            System.out.println("File Path: " + filePath);
+            Process javap = new ProcessBuilder()
+                    .command("javap", "-c", filePath)
+                    .directory(tmpDir)
+                    .redirectOutput(outputFile)
+                    .redirectError(ProcessBuilder.Redirect.INHERIT)
+                    .start();
+            
+            javap.waitFor();
+            System.out.println("Exit value: " + javap.exitValue());
+            String output = Files.readAllLines(outputFile.toPath())
+                    .stream()
+                    .skip(1) // Drop first line...
+                    .collect(Collectors.joining("\n"));
+            OutputBytecode.setText(output);
+            System.out.println("Output: " + output);
+            
+       } catch (Exception ex) {
+            Logger.getLogger(Editor.class.getName()).log(Level.SEVERE, null, ex);
+        } 
+    }//GEN-LAST:event_jMenu1MouseClicked
 
     /**
      * @param args the command line arguments
@@ -209,8 +301,11 @@ public class Editor extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JTextArea OutputBytecode;
     private javax.swing.JPanel TextEditorPanel;
     private javax.swing.ButtonGroup buttonGroup1;
+    private javax.swing.JMenu jMenu1;
+    private javax.swing.JMenuBar jMenuBar1;
     private javax.swing.JPanel jPanel2;
     private javax.swing.JPanel jPanel3;
     private javax.swing.JPanel jPanel4;
@@ -222,6 +317,5 @@ public class Editor extends javax.swing.JFrame {
     private javax.swing.JTabbedPane jTabbedPane1;
     private javax.swing.JTextArea jTextArea1;
     private javax.swing.JTextArea jTextArea2;
-    private javax.swing.JTextArea jTextArea3;
     // End of variables declaration//GEN-END:variables
 }
