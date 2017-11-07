@@ -30,6 +30,7 @@
  */
 package llvm.jvm.frontend;
 
+import java.awt.BorderLayout;
 import java.awt.Font;
 import java.io.File;
 import java.io.FileWriter;
@@ -40,6 +41,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import javax.swing.ImageIcon;
+import javax.swing.JLabel;
+import javax.swing.JScrollPane;
 import org.fife.ui.rtextarea.*;
 import org.fife.ui.rsyntaxtextarea.*;
 
@@ -126,13 +130,9 @@ public class Editor extends javax.swing.JFrame {
         jPanel2 = new javax.swing.JPanel();
         jScrollPane3 = new javax.swing.JScrollPane();
         OutputBytecode = new javax.swing.JTextArea();
-        jPanel3 = new javax.swing.JPanel();
-        jScrollPane2 = new javax.swing.JScrollPane();
-        OutputUnoptimizedIR = new javax.swing.JTextArea();
-        jPanel4 = new javax.swing.JPanel();
-        jPanel5 = new javax.swing.JPanel();
-        jScrollPane1 = new javax.swing.JScrollPane();
-        OutputOptimizedIR = new javax.swing.JTextArea();
+        OutputUnoptimizedIR = new javax.swing.JPanel();
+        OutputOptimizedIR = new javax.swing.JPanel();
+        OutputOptimizedIR2 = new javax.swing.JPanel();
         jMenuBar1 = new javax.swing.JMenuBar();
         jMenu1 = new javax.swing.JMenu();
 
@@ -160,56 +160,15 @@ public class Editor extends javax.swing.JFrame {
 
         jTabbedPane1.addTab("ByteCode", jPanel2);
 
-        OutputUnoptimizedIR.setEditable(false);
-        OutputUnoptimizedIR.setColumns(20);
-        OutputUnoptimizedIR.setRows(5);
-        jScrollPane2.setViewportView(OutputUnoptimizedIR);
+        OutputUnoptimizedIR.setLayout(new java.awt.BorderLayout());
+        jTabbedPane1.addTab("LLVM IR (Unoptimized)", OutputUnoptimizedIR);
 
-        javax.swing.GroupLayout jPanel3Layout = new javax.swing.GroupLayout(jPanel3);
-        jPanel3.setLayout(jPanel3Layout);
-        jPanel3Layout.setHorizontalGroup(
-            jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jScrollPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 460, Short.MAX_VALUE)
-        );
-        jPanel3Layout.setVerticalGroup(
-            jPanel3Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jScrollPane2, javax.swing.GroupLayout.DEFAULT_SIZE, 488, Short.MAX_VALUE)
-        );
+        OutputOptimizedIR.setLayout(new java.awt.BorderLayout());
 
-        jTabbedPane1.addTab("LLVM IR (Unoptimized)", jPanel3);
+        OutputOptimizedIR2.setLayout(new java.awt.BorderLayout());
+        OutputOptimizedIR.add(OutputOptimizedIR2, java.awt.BorderLayout.CENTER);
 
-        javax.swing.GroupLayout jPanel5Layout = new javax.swing.GroupLayout(jPanel5);
-        jPanel5.setLayout(jPanel5Layout);
-        jPanel5Layout.setHorizontalGroup(
-            jPanel5Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 102, Short.MAX_VALUE)
-        );
-        jPanel5Layout.setVerticalGroup(
-            jPanel5Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGap(0, 488, Short.MAX_VALUE)
-        );
-
-        OutputOptimizedIR.setEditable(false);
-        OutputOptimizedIR.setColumns(20);
-        OutputOptimizedIR.setRows(5);
-        jScrollPane1.setViewportView(OutputOptimizedIR);
-
-        javax.swing.GroupLayout jPanel4Layout = new javax.swing.GroupLayout(jPanel4);
-        jPanel4.setLayout(jPanel4Layout);
-        jPanel4Layout.setHorizontalGroup(
-            jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel4Layout.createSequentialGroup()
-                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 351, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jPanel5, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-        );
-        jPanel4Layout.setVerticalGroup(
-            jPanel4Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jPanel5, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-            .addComponent(jScrollPane1)
-        );
-
-        jTabbedPane1.addTab("LLVM IR (Optimized)", jPanel4);
+        jTabbedPane1.addTab("LLVM IR (Optimized)", OutputOptimizedIR);
 
         jMenu1.setText("Run");
         jMenu1.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -310,17 +269,63 @@ public class Editor extends javax.swing.JFrame {
             
             String unoptimizedFile = tmpDir + "/unoptimizedIR.ll";
             String optimizedFile = tmpDir + "/optimizedIR.ll";
-            output = Files.readAllLines(Paths.get(unoptimizedFile))
-                    .stream()
-                    .skip(3) // Drop header...
-                    .collect(Collectors.joining("\n"));
-            OutputUnoptimizedIR.setText(output);
+            new ProcessBuilder()
+                    .command("llvm-as", "unoptimizedIR.ll", "-o", "unoptimized.bc")
+                    .directory(tmpDir)
+                    .start()
+                    .waitFor();
             
-            output = Files.readAllLines(Paths.get(optimizedFile))
-                    .stream()
-                    .skip(3) // Drop header...
-                    .collect(Collectors.joining("\n"));
-            OutputOptimizedIR.setText(output);
+            new ProcessBuilder()
+                    .command("opt", "unoptimized.bc", "-dot-cfg", "-analyze")
+                    .directory(tmpDir)
+                    .start()
+                    .waitFor();
+            
+            new ProcessBuilder()
+                    .command("dot", "-Tpng", "cfg.main.dot", "-o", "unoptimizedIR.png")
+                    .directory(tmpDir)
+                    .start()
+                    .waitFor();
+            
+            System.out.println("File: " + Paths.get(tmpDir + "/unoptimizedIR.png") + ", Exists: " + Files.exists(Paths.get(tmpDir + "/unoptimizedIR.png")));
+            ImageIcon image = new ImageIcon(Paths.get(tmpDir + "/unoptimizedIR.png").toString());
+            JLabel label = new JLabel("", image, JLabel.CENTER);
+            OutputUnoptimizedIR.add( new JScrollPane(label), BorderLayout.CENTER );
+            
+            new ProcessBuilder()
+                    .command("llvm-as", "optimizedIR.ll", "-o", "optimized.bc")
+                    .directory(tmpDir)
+                    .start()
+                    .waitFor();
+            
+            new ProcessBuilder()
+                    .command("opt", "optimized.bc", "-dot-cfg", "-analyze")
+                    .directory(tmpDir)
+                    .start()
+                    .waitFor();
+            
+            new ProcessBuilder()
+                    .command("dot", "-Tpng", "cfg.main.dot", "-o", "optimizedIR.png")
+                    .directory(tmpDir)
+                    .start()
+                    .waitFor();
+            
+            System.out.println("File: " + Paths.get(tmpDir + "/optimizedIR.png") + ", Exists: " + Files.exists(Paths.get(tmpDir + "/optimizedIR.png")));
+            image = new ImageIcon(Paths.get(tmpDir + "/optimizedIR.png").toString());
+            label = new JLabel("", image, JLabel.CENTER);
+            OutputOptimizedIR2.add( new JScrollPane(label), BorderLayout.CENTER );
+            
+//            output = Files.readAllLines(Paths.get(unoptimizedFile))
+//                    .stream()
+//                    .skip(3) // Drop header...
+//                    .collect(Collectors.joining("\n"));
+//            OutputUnoptimizedIR.setText(output);
+//            
+//            output = Files.readAllLines(Paths.get(optimizedFile))
+//                    .stream()
+//                    .skip(3) // Drop header...
+//                    .collect(Collectors.joining("\n"));
+//            OutputOptimizedIR.setText(output);
             
        } catch (Exception ex) {
             Logger.getLogger(Editor.class.getName()).log(Level.SEVERE, null, ex);
@@ -364,18 +369,14 @@ public class Editor extends javax.swing.JFrame {
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JTextArea OutputBytecode;
-    private javax.swing.JTextArea OutputOptimizedIR;
-    private javax.swing.JTextArea OutputUnoptimizedIR;
+    private javax.swing.JPanel OutputOptimizedIR;
+    private javax.swing.JPanel OutputOptimizedIR2;
+    private javax.swing.JPanel OutputUnoptimizedIR;
     private javax.swing.JPanel TextEditorPanel;
     private javax.swing.ButtonGroup buttonGroup1;
     private javax.swing.JMenu jMenu1;
     private javax.swing.JMenuBar jMenuBar1;
     private javax.swing.JPanel jPanel2;
-    private javax.swing.JPanel jPanel3;
-    private javax.swing.JPanel jPanel4;
-    private javax.swing.JPanel jPanel5;
-    private javax.swing.JScrollPane jScrollPane1;
-    private javax.swing.JScrollPane jScrollPane2;
     private javax.swing.JScrollPane jScrollPane3;
     private javax.swing.JSeparator jSeparator1;
     private javax.swing.JTabbedPane jTabbedPane1;
