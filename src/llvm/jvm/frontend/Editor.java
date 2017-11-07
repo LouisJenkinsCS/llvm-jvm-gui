@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.util.logging.Level;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.fife.ui.rtextarea.*;
@@ -48,7 +49,36 @@ import org.fife.ui.rsyntaxtextarea.*;
  */
 public class Editor extends javax.swing.JFrame {
     
+    private static String LLVM_JVM_PATH = "/home/awsgui/LLVM-JVM/";
+    
     private RSyntaxTextArea editor;
+    private static String defaultContents = "class Addition {\n" +
+                        "\n" +
+                        "  public static int result;\n" +
+                        "\n" +
+                        "  public static int RunMe() {\n" +
+                        "    int x = 0x1000;\n" +
+                        "    int y = 0x2000;\n" +
+                        "    int z = 0x3000;\n" +
+                        "    int w = x + y + z;\n" +
+                        "\n" +
+                        "    if (w > x) {\n" +
+                        "      result = w;\n" +
+                        "    } else if (y > w) {\n" +
+                        "      result = y;\n" +
+                        "    } else if (z > w) {\n" +
+                        "      result = z;\n" +
+                        "    } else {\n" +
+                        "      result = x;\n" +
+                        "    }\n" +
+                        "\n" +
+                        "    return result;\n" +
+                        "  }\n" +
+                        "\n" +
+                        "  public static void main(String[] args) {\n" +
+                        "\n" +
+                        "  }\n" +
+                        "}";
 
     /**
      * Creates new form Editor
@@ -60,6 +90,7 @@ public class Editor extends javax.swing.JFrame {
         editor.setFont(new Font("Arial", Font.PLAIN, 20));
         editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVA);
         editor.setCodeFoldingEnabled(true);
+        editor.setText(defaultContents);
         RTextScrollPane sp = new RTextScrollPane(editor);
         TextEditorPanel.add(sp);
 
@@ -68,6 +99,15 @@ public class Editor extends javax.swing.JFrame {
         pack();
         setLocationRelativeTo(null);
         
+    }
+    
+    public static String getBaseName(String fileName) {
+        int index = fileName.lastIndexOf('.');
+        if (index == -1) {
+            return fileName;
+        } else {
+            return fileName.substring(0, index);
+        }
     }
 
     /**
@@ -88,11 +128,11 @@ public class Editor extends javax.swing.JFrame {
         OutputBytecode = new javax.swing.JTextArea();
         jPanel3 = new javax.swing.JPanel();
         jScrollPane2 = new javax.swing.JScrollPane();
-        jTextArea2 = new javax.swing.JTextArea();
+        OutputUnoptimizedIR = new javax.swing.JTextArea();
         jPanel4 = new javax.swing.JPanel();
         jPanel5 = new javax.swing.JPanel();
         jScrollPane1 = new javax.swing.JScrollPane();
-        jTextArea1 = new javax.swing.JTextArea();
+        OutputOptimizedIR = new javax.swing.JTextArea();
         jMenuBar1 = new javax.swing.JMenuBar();
         jMenu1 = new javax.swing.JMenu();
 
@@ -120,10 +160,10 @@ public class Editor extends javax.swing.JFrame {
 
         jTabbedPane1.addTab("ByteCode", jPanel2);
 
-        jTextArea2.setEditable(false);
-        jTextArea2.setColumns(20);
-        jTextArea2.setRows(5);
-        jScrollPane2.setViewportView(jTextArea2);
+        OutputUnoptimizedIR.setEditable(false);
+        OutputUnoptimizedIR.setColumns(20);
+        OutputUnoptimizedIR.setRows(5);
+        jScrollPane2.setViewportView(OutputUnoptimizedIR);
 
         javax.swing.GroupLayout jPanel3Layout = new javax.swing.GroupLayout(jPanel3);
         jPanel3.setLayout(jPanel3Layout);
@@ -149,10 +189,10 @@ public class Editor extends javax.swing.JFrame {
             .addGap(0, 488, Short.MAX_VALUE)
         );
 
-        jTextArea1.setEditable(false);
-        jTextArea1.setColumns(20);
-        jTextArea1.setRows(5);
-        jScrollPane1.setViewportView(jTextArea1);
+        OutputOptimizedIR.setEditable(false);
+        OutputOptimizedIR.setColumns(20);
+        OutputOptimizedIR.setRows(5);
+        jScrollPane1.setViewportView(OutputOptimizedIR);
 
         javax.swing.GroupLayout jPanel4Layout = new javax.swing.GroupLayout(jPanel4);
         jPanel4.setLayout(jPanel4Layout);
@@ -220,7 +260,7 @@ public class Editor extends javax.swing.JFrame {
             String filePath = tmpFile.getAbsolutePath();
             System.out.println("File Path: " + filePath);
             Process javac = new ProcessBuilder()
-                    .command("javac", filePath)
+                    .command("javac", filePath, "-target", "1.7", "-source", "1.7")
                     .directory(tmpDir)
                     .redirectOutput(ProcessBuilder.Redirect.INHERIT)
                     .redirectError(ProcessBuilder.Redirect.INHERIT)
@@ -259,6 +299,28 @@ public class Editor extends javax.swing.JFrame {
                     .collect(Collectors.joining("\n"));
             OutputBytecode.setText(output);
             System.out.println("Output: " + output);
+            
+            String command = LLVM_JVM_PATH + "Main.exe " + getBaseName(classFile.getName()) + " -cp ./:" + LLVM_JVM_PATH + "rt";
+            System.out.println(command);
+            Process llvmJVM = new ProcessBuilder()
+                    .command(LLVM_JVM_PATH + "Main.exe", "-cp", "./:" + LLVM_JVM_PATH + "rt", getBaseName(classFile.getName()))
+                    .directory(tmpDir)
+                    .start();
+            llvmJVM.waitFor();
+            
+            String unoptimizedFile = tmpDir + "/unoptimizedIR.ll";
+            String optimizedFile = tmpDir + "/optimizedIR.ll";
+            output = Files.readAllLines(Paths.get(unoptimizedFile))
+                    .stream()
+                    .skip(3) // Drop header...
+                    .collect(Collectors.joining("\n"));
+            OutputUnoptimizedIR.setText(output);
+            
+            output = Files.readAllLines(Paths.get(optimizedFile))
+                    .stream()
+                    .skip(3) // Drop header...
+                    .collect(Collectors.joining("\n"));
+            OutputOptimizedIR.setText(output);
             
        } catch (Exception ex) {
             Logger.getLogger(Editor.class.getName()).log(Level.SEVERE, null, ex);
@@ -302,6 +364,8 @@ public class Editor extends javax.swing.JFrame {
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JTextArea OutputBytecode;
+    private javax.swing.JTextArea OutputOptimizedIR;
+    private javax.swing.JTextArea OutputUnoptimizedIR;
     private javax.swing.JPanel TextEditorPanel;
     private javax.swing.ButtonGroup buttonGroup1;
     private javax.swing.JMenu jMenu1;
@@ -315,7 +379,5 @@ public class Editor extends javax.swing.JFrame {
     private javax.swing.JScrollPane jScrollPane3;
     private javax.swing.JSeparator jSeparator1;
     private javax.swing.JTabbedPane jTabbedPane1;
-    private javax.swing.JTextArea jTextArea1;
-    private javax.swing.JTextArea jTextArea2;
     // End of variables declaration//GEN-END:variables
 }
