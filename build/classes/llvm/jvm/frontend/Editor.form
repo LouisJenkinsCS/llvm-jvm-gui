@@ -115,35 +115,24 @@
         <Container class="javax.swing.JPanel" name="OutputUnoptimizedIR">
           <Constraints>
             <Constraint layoutClass="org.netbeans.modules.form.compat2.layouts.support.JTabbedPaneSupportLayout" value="org.netbeans.modules.form.compat2.layouts.support.JTabbedPaneSupportLayout$JTabbedPaneConstraintsDescription">
-              <JTabbedPaneConstraints tabName="LLVM IR (Unoptimized)">
-                <Property name="tabTitle" type="java.lang.String" value="LLVM IR (Unoptimized)"/>
+              <JTabbedPaneConstraints tabName="LLVM IR">
+                <Property name="tabTitle" type="java.lang.String" value="LLVM IR"/>
               </JTabbedPaneConstraints>
             </Constraint>
           </Constraints>
 
           <Layout class="org.netbeans.modules.form.compat2.layouts.DesignBorderLayout"/>
         </Container>
-        <Container class="javax.swing.JPanel" name="OutputOptimizedIR">
+        <Container class="javax.swing.JPanel" name="OptimizationsPanel">
           <Constraints>
             <Constraint layoutClass="org.netbeans.modules.form.compat2.layouts.support.JTabbedPaneSupportLayout" value="org.netbeans.modules.form.compat2.layouts.support.JTabbedPaneSupportLayout$JTabbedPaneConstraintsDescription">
-              <JTabbedPaneConstraints tabName="LLVM IR (Optimized)">
-                <Property name="tabTitle" type="java.lang.String" value="LLVM IR (Optimized)"/>
+              <JTabbedPaneConstraints tabName="Optimizations">
+                <Property name="tabTitle" type="java.lang.String" value="Optimizations"/>
               </JTabbedPaneConstraints>
             </Constraint>
           </Constraints>
 
           <Layout class="org.netbeans.modules.form.compat2.layouts.DesignBorderLayout"/>
-          <SubComponents>
-            <Container class="javax.swing.JPanel" name="OutputOptimizedIR2">
-              <Constraints>
-                <Constraint layoutClass="org.netbeans.modules.form.compat2.layouts.DesignBorderLayout" value="org.netbeans.modules.form.compat2.layouts.DesignBorderLayout$BorderConstraintsDescription">
-                  <BorderConstraints direction="Center"/>
-                </Constraint>
-              </Constraints>
-
-              <Layout class="org.netbeans.modules.form.compat2.layouts.DesignBorderLayout"/>
-            </Container>
-          </SubComponents>
         </Container>
       </SubComponents>
     </Container>

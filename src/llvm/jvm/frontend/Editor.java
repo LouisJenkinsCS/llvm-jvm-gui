@@ -47,7 +47,9 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import javax.swing.DefaultListModel;
 import javax.swing.ImageIcon;
+import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JScrollPane;
 import org.fife.ui.rtextarea.*;
@@ -91,7 +93,8 @@ public class Editor extends javax.swing.JFrame {
             + "    return result;\n"
             + "  }\n"
             + "}";
-
+    
+    private DefaultListModel<JCheckBox> model;
     /**
      * Creates new form Editor
      */
@@ -106,8 +109,15 @@ public class Editor extends javax.swing.JFrame {
                         ))
                 );
             
+            model = new DefaultListModel<>();
+            CheckBoxList cblist = new CheckBoxList(model);
+           
+            
             optimizations = (Map<String, String>) obj;
-            optimizations.forEach((k, v) -> System.out.println(k + ": " + v));
+            optimizations.forEach((k, v) -> {
+                model.addElement(new JCheckBox(k));
+            });
+            OptimizationsPanel.add(new JScrollPane(cblist), BorderLayout.CENTER);
                     
             editor = new RSyntaxTextArea(20, 60);
             editor.setFont(new Font("Arial", Font.PLAIN, 20));
@@ -139,15 +149,29 @@ public class Editor extends javax.swing.JFrame {
     }
 
     private void generateLLVMGraph(int type, int... optimizations) throws IOException, InterruptedException {
+        ArrayList<String> args = new ArrayList<>();
         String graphType = type == 0 ? "cfg" : type == 1 ? "dom" : "postdom";
+        args.add("opt");
+        args.add("unoptimized.bc");
+        
+        
+        for(int i = 0; i < model.size(); i++) {
+            JCheckBox cbox = model.elementAt(i);
+            if(cbox.isSelected()) {
+                args.add("-" + cbox.getText());
+            }
+        }
+        args.add("-dot-" + graphType);
+        
         new ProcessBuilder()
                 .command("llvm-as", "unoptimizedIR.ll", "-o", "unoptimized.bc")
                 .directory(dir)
                 .start()
                 .waitFor();
-
+        
+        System.out.println(args);
         new ProcessBuilder()
-                .command("opt", "unoptimized.bc", "-dot-" + graphType, "-analyze")
+                .command(args)
                 .directory(dir)
                 .start()
                 .waitFor();
@@ -182,8 +206,7 @@ public class Editor extends javax.swing.JFrame {
         jScrollPane3 = new javax.swing.JScrollPane();
         OutputBytecode = new javax.swing.JTextArea();
         OutputUnoptimizedIR = new javax.swing.JPanel();
-        OutputOptimizedIR = new javax.swing.JPanel();
-        OutputOptimizedIR2 = new javax.swing.JPanel();
+        OptimizationsPanel = new javax.swing.JPanel();
         jMenuBar1 = new javax.swing.JMenuBar();
         jMenu1 = new javax.swing.JMenu();
 
@@ -212,14 +235,10 @@ public class Editor extends javax.swing.JFrame {
         jTabbedPane1.addTab("ByteCode", jPanel2);
 
         OutputUnoptimizedIR.setLayout(new java.awt.BorderLayout());
-        jTabbedPane1.addTab("LLVM IR (Unoptimized)", OutputUnoptimizedIR);
+        jTabbedPane1.addTab("LLVM IR", OutputUnoptimizedIR);
 
-        OutputOptimizedIR.setLayout(new java.awt.BorderLayout());
-
-        OutputOptimizedIR2.setLayout(new java.awt.BorderLayout());
-        OutputOptimizedIR.add(OutputOptimizedIR2, java.awt.BorderLayout.CENTER);
-
-        jTabbedPane1.addTab("LLVM IR (Optimized)", OutputOptimizedIR);
+        OptimizationsPanel.setLayout(new java.awt.BorderLayout());
+        jTabbedPane1.addTab("Optimizations", OptimizationsPanel);
 
         jMenu1.setText("Run");
         jMenu1.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -370,9 +389,8 @@ public class Editor extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JPanel OptimizationsPanel;
     private javax.swing.JTextArea OutputBytecode;
-    private javax.swing.JPanel OutputOptimizedIR;
-    private javax.swing.JPanel OutputOptimizedIR2;
     private javax.swing.JPanel OutputUnoptimizedIR;
     private javax.swing.JPanel TextEditorPanel;
     private javax.swing.ButtonGroup buttonGroup1;
