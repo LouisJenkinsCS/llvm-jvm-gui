@@ -30,6 +30,10 @@
  */
 package llvm.jvm.frontend;
 
+import com.ngs.image.ImageModel;
+import com.ngs.image.ImagePanel;
+import com.ngs.image.ImageSource;
+import com.ngs.image.source.ImageIOSource;
 import java.awt.BorderLayout;
 import java.awt.Font;
 import java.io.File;
@@ -39,6 +43,8 @@ import java.util.logging.Level;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Map;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import javax.swing.ImageIcon;
@@ -46,65 +52,83 @@ import javax.swing.JLabel;
 import javax.swing.JScrollPane;
 import org.fife.ui.rtextarea.*;
 import org.fife.ui.rsyntaxtextarea.*;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 /**
  *
  * @author Louis Jenkins
  */
 public class Editor extends javax.swing.JFrame {
-    
+
     private static String LLVM_JVM_PATH = "/home/awsgui/LLVM-JVM/";
     
+    private Map<String, String> optimizations;
+    private File dir;
+
     private RSyntaxTextArea editor;
-    private static String defaultContents = "class Addition {\n" +
-                        "\n" +
-                        "  public static int result;\n" +
-                        "\n" +
-                        "  public static int RunMe() {\n" +
-                        "    int x = 0x1000;\n" +
-                        "    int y = 0x2000;\n" +
-                        "    int z = 0x3000;\n" +
-                        "    int w = x + y + z;\n" +
-                        "\n" +
-                        "    if (w > x) {\n" +
-                        "      result = w;\n" +
-                        "    } else if (y > w) {\n" +
-                        "      result = y;\n" +
-                        "    } else if (z > w) {\n" +
-                        "      result = z;\n" +
-                        "    } else {\n" +
-                        "      result = x;\n" +
-                        "    }\n" +
-                        "\n" +
-                        "    return result;\n" +
-                        "  }\n" +
-                        "\n" +
-                        "  public static void main(String[] args) {\n" +
-                        "\n" +
-                        "  }\n" +
-                        "}";
+    private static String defaultContents = "class Addition {\n"
+            + "\n"
+            + "  public static int result;\n"
+            + "\n"
+            + "  public static int RunMe() {\n"
+            + "    int x = 0x1000;\n"
+            + "    int y = 0x2000;\n"
+            + "    int z = 0x3000;\n"
+            + "    int w = x + y + z;\n"
+            + "\n"
+            + "    if (w > x) {\n"
+            + "      result = w;\n"
+            + "    } else if (y > w) {\n"
+            + "      result = y;\n"
+            + "    } else if (z > w) {\n"
+            + "      result = z;\n"
+            + "    } else {\n"
+            + "      result = x;\n"
+            + "    }\n"
+            + "\n"
+            + "    return result;\n"
+            + "  }\n"
+            + "}";
 
     /**
      * Creates new form Editor
      */
     public Editor() {
-        initComponents();
-        
-        editor = new RSyntaxTextArea(20, 60);
-        editor.setFont(new Font("Arial", Font.PLAIN, 20));
-        editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVA);
-        editor.setCodeFoldingEnabled(true);
-        editor.setText(defaultContents);
-        RTextScrollPane sp = new RTextScrollPane(editor);
-        TextEditorPanel.add(sp);
+        try {
+            initComponents();
+            
+            JSONObject obj = (JSONObject) new JSONParser()
+                .parse(new String(Files
+                        .readAllBytes(Paths
+                                .get("opt-passes.json")
+                        ))
+                );
+            
+            optimizations = (Map<String, String>) obj;
+            optimizations.forEach((k, v) -> System.out.println(k + ": " + v));
+                    
+            editor = new RSyntaxTextArea(20, 60);
+            editor.setFont(new Font("Arial", Font.PLAIN, 20));
+            editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVA);
+            editor.setCodeFoldingEnabled(true);
+            editor.setText(defaultContents);
+            RTextScrollPane sp = new RTextScrollPane(editor);
+            TextEditorPanel.add(sp);
 
-        setTitle("Text Editor Demo");
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
-        pack();
-        setLocationRelativeTo(null);
-        
+            setTitle("Text Editor Demo");
+            setDefaultCloseOperation(EXIT_ON_CLOSE);
+            pack();
+            setLocationRelativeTo(null);
+        } catch (ParseException ex) {
+            Logger.getLogger(Editor.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(Editor.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
     }
-    
+
     public static String getBaseName(String fileName) {
         int index = fileName.lastIndexOf('.');
         if (index == -1) {
@@ -112,6 +136,33 @@ public class Editor extends javax.swing.JFrame {
         } else {
             return fileName.substring(0, index);
         }
+    }
+
+    private void generateLLVMGraph(int type, int... optimizations) throws IOException, InterruptedException {
+        String graphType = type == 0 ? "cfg" : type == 1 ? "dom" : "postdom";
+        new ProcessBuilder()
+                .command("llvm-as", "unoptimizedIR.ll", "-o", "unoptimized.bc")
+                .directory(dir)
+                .start()
+                .waitFor();
+
+        new ProcessBuilder()
+                .command("opt", "unoptimized.bc", "-dot-" + graphType, "-analyze")
+                .directory(dir)
+                .start()
+                .waitFor();
+
+        new ProcessBuilder()
+                .command("dot", "-Tpng", graphType + ".main.dot", "-o", "unoptimizedIR.png")
+                .directory(dir)
+                .start()
+                .waitFor();
+
+        ImageSource src = new ImageIOSource(Paths.get(dir + "/unoptimizedIR.png").toFile());
+        ImageModel model = new ImageModel(src);
+        ImagePanel iPanel = new ImagePanel(model);
+        OutputUnoptimizedIR.removeAll();
+        OutputUnoptimizedIR.add(iPanel, BorderLayout.CENTER);
     }
 
     /**
@@ -210,26 +261,24 @@ public class Editor extends javax.swing.JFrame {
     private void jMenu1MouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_jMenu1MouseClicked
         try {
             String txt = editor.getText();
-            File tmpDir = Files.createTempDirectory("tmp").toFile();
-            File tmpFile = File.createTempFile("tmp", ".java", tmpDir);
+            dir = Files.createTempDirectory("tmp").toFile();
+            File tmpFile = File.createTempFile("tmp", ".java", dir);
             FileWriter writer = new FileWriter(tmpFile);
             writer.write(txt);
             writer.close();
-            
+
             String filePath = tmpFile.getAbsolutePath();
             System.out.println("File Path: " + filePath);
-            Process javac = new ProcessBuilder()
+            new ProcessBuilder()
                     .command("javac", filePath, "-target", "1.7", "-source", "1.7")
-                    .directory(tmpDir)
+                    .directory(dir)
                     .redirectOutput(ProcessBuilder.Redirect.INHERIT)
                     .redirectError(ProcessBuilder.Redirect.INHERIT)
-                    .start();
-            
-            javac.waitFor();
-            System.out.println("Exit value: " + javac.exitValue());
-            
+                    .start()
+                    .waitFor();
+
             // Find the generated '.class' file...
-            File classFile = Files.list(tmpDir.toPath())
+            File classFile = Files.list(dir.toPath())
                     .filter(f -> f.toAbsolutePath()
                             .toString()
                             .endsWith(".class")
@@ -237,84 +286,38 @@ public class Editor extends javax.swing.JFrame {
                     .map(Path::toFile)
                     .findAny()
                     .orElse(null);
-            
+
             System.out.println("ClassFile: " + classFile.getName());
-            
+
             filePath = classFile.getAbsolutePath();
-            File outputFile = File.createTempFile("out", ".txt", tmpDir);
+            File outputFile = File.createTempFile("out", ".txt", dir);
             System.out.println("File Path: " + filePath);
-            Process javap = new ProcessBuilder()
+            new ProcessBuilder()
                     .command("javap", "-c", filePath)
-                    .directory(tmpDir)
+                    .directory(dir)
                     .redirectOutput(outputFile)
                     .redirectError(ProcessBuilder.Redirect.INHERIT)
-                    .start();
-            
-            javap.waitFor();
-            System.out.println("Exit value: " + javap.exitValue());
+                    .start()
+                    .waitFor();
+
             String output = Files.readAllLines(outputFile.toPath())
                     .stream()
                     .skip(1) // Drop first line...
                     .collect(Collectors.joining("\n"));
             OutputBytecode.setText(output);
-            System.out.println("Output: " + output);
-            
+
             String command = LLVM_JVM_PATH + "Main.exe " + getBaseName(classFile.getName()) + " -cp ./:" + LLVM_JVM_PATH + "rt";
             System.out.println(command);
-            Process llvmJVM = new ProcessBuilder()
+            new ProcessBuilder()
                     .command(LLVM_JVM_PATH + "Main.exe", "-cp", "./:" + LLVM_JVM_PATH + "rt", getBaseName(classFile.getName()))
-                    .directory(tmpDir)
-                    .start();
-            llvmJVM.waitFor();
-            
-            String unoptimizedFile = tmpDir + "/unoptimizedIR.ll";
-            String optimizedFile = tmpDir + "/optimizedIR.ll";
-            new ProcessBuilder()
-                    .command("llvm-as", "unoptimizedIR.ll", "-o", "unoptimized.bc")
-                    .directory(tmpDir)
+                    .directory(dir)
                     .start()
                     .waitFor();
-            
-            new ProcessBuilder()
-                    .command("opt", "unoptimized.bc", "-dot-cfg", "-analyze")
-                    .directory(tmpDir)
-                    .start()
-                    .waitFor();
-            
-            new ProcessBuilder()
-                    .command("dot", "-Tpng", "cfg.main.dot", "-o", "unoptimizedIR.png")
-                    .directory(tmpDir)
-                    .start()
-                    .waitFor();
-            
-            System.out.println("File: " + Paths.get(tmpDir + "/unoptimizedIR.png") + ", Exists: " + Files.exists(Paths.get(tmpDir + "/unoptimizedIR.png")));
-            ImageIcon image = new ImageIcon(Paths.get(tmpDir + "/unoptimizedIR.png").toString());
-            JLabel label = new JLabel("", image, JLabel.CENTER);
-            OutputUnoptimizedIR.add( new JScrollPane(label), BorderLayout.CENTER );
-            
-            new ProcessBuilder()
-                    .command("llvm-as", "optimizedIR.ll", "-o", "optimized.bc")
-                    .directory(tmpDir)
-                    .start()
-                    .waitFor();
-            
-            new ProcessBuilder()
-                    .command("opt", "optimized.bc", "-dot-cfg", "-analyze")
-                    .directory(tmpDir)
-                    .start()
-                    .waitFor();
-            
-            new ProcessBuilder()
-                    .command("dot", "-Tpng", "cfg.main.dot", "-o", "optimizedIR.png")
-                    .directory(tmpDir)
-                    .start()
-                    .waitFor();
-            
-            System.out.println("File: " + Paths.get(tmpDir + "/optimizedIR.png") + ", Exists: " + Files.exists(Paths.get(tmpDir + "/optimizedIR.png")));
-            image = new ImageIcon(Paths.get(tmpDir + "/optimizedIR.png").toString());
-            label = new JLabel("", image, JLabel.CENTER);
-            OutputOptimizedIR2.add( new JScrollPane(label), BorderLayout.CENTER );
-            
+
+            generateLLVMGraph(0);
+
+            Toast.makeText(this, "Output: " + new String(Files.readAllBytes(Paths.get(dir + "/out.txt"))), Toast.Style.NORMAL).display();
+
 //            output = Files.readAllLines(Paths.get(unoptimizedFile))
 //                    .stream()
 //                    .skip(3) // Drop header...
@@ -326,10 +329,9 @@ public class Editor extends javax.swing.JFrame {
 //                    .skip(3) // Drop header...
 //                    .collect(Collectors.joining("\n"));
 //            OutputOptimizedIR.setText(output);
-            
-       } catch (Exception ex) {
+        } catch (Exception ex) {
             Logger.getLogger(Editor.class.getName()).log(Level.SEVERE, null, ex);
-        } 
+        }
     }//GEN-LAST:event_jMenu1MouseClicked
 
     /**
