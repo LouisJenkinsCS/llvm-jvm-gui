@@ -52,6 +52,7 @@ import javax.swing.ImageIcon;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JScrollPane;
+import javax.swing.ListSelectionModel;
 import org.fife.ui.rtextarea.*;
 import org.fife.ui.rsyntaxtextarea.*;
 import org.json.simple.JSONObject;
@@ -101,21 +102,27 @@ public class Editor extends javax.swing.JFrame {
     public Editor() {
         try {
             initComponents();
-            
-            JSONObject obj = (JSONObject) new JSONParser()
-                .parse(new String(Files
-                        .readAllBytes(Paths
-                                .get("opt-passes.json")
-                        ))
-                );
-            
             model = new DefaultListModel<>();
             CheckBoxList cblist = new CheckBoxList(model);
-           
             
-            optimizations = (Map<String, String>) obj;
-            optimizations.forEach((k, v) -> {
-                model.addElement(new JCheckBox(k));
+            OptimizationManager.init();
+            OptimizationManager.getOptimizations().forEach(opt ->
+                model.addElement(new JCheckBox(opt.getName()))
+            );
+            cblist.addListSelectionListener(e -> {
+                CheckBoxList lsm = (CheckBoxList)e.getSource();
+                
+                if (lsm.getValueIsAdjusting()) {
+                    return;
+                }
+                if (lsm.isSelectionEmpty()) {
+                    OptimizationManager.reset();
+                    System.out.println("Reset...");
+                } else {
+                    // Find out which indexes are selected.
+                    JCheckBox chbox = lsm.getSelectedValue();
+                    OptimizationManager.setSelected(chbox.getText(), true);
+                }
             });
             OptimizationsPanel.add(new JScrollPane(cblist), BorderLayout.CENTER);
                     
@@ -131,9 +138,7 @@ public class Editor extends javax.swing.JFrame {
             setDefaultCloseOperation(EXIT_ON_CLOSE);
             pack();
             setLocationRelativeTo(null);
-        } catch (ParseException ex) {
-            Logger.getLogger(Editor.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IOException ex) {
+        } catch (ParseException | IOException ex) {
             Logger.getLogger(Editor.class.getName()).log(Level.SEVERE, null, ex);
         }
 
@@ -154,13 +159,20 @@ public class Editor extends javax.swing.JFrame {
         args.add("opt");
         args.add("unoptimized.bc");
         
-        
+        // Remove any unselected JCheckBox's, as unselection is not triggered
+        // by the ListSelectionListener event.
         for(int i = 0; i < model.size(); i++) {
             JCheckBox cbox = model.elementAt(i);
-            if(cbox.isSelected()) {
-                args.add("-" + cbox.getText());
+            if(!cbox.isSelected()) {
+                OptimizationManager
+                        .getSelected()
+                        .filter(opt -> opt.getName().equals(cbox.getText()))
+                        .subscribe(opt -> opt.setSelected(false));
             }
         }
+        OptimizationManager
+                .getSelected()
+                .forEach(opt -> args.add("-" + opt.getName())); 
         args.add("-dot-" + graphType);
         
         new ProcessBuilder()
