@@ -54,5 +54,11 @@
   "internalize": "Internalize Global Symbols", 
   "inline": "Function Integration/Inlining", 
   "bb-vectorize": "Basic-Block Vectorization", 
-  "loweratomic": "Lower atomic intrinsics to non-atomic form"
+  "loweratomic": "Lower atomic intrinsics to non-atomic form",
+  "O3" : "Maximum Optimization sequence",
+  "O2" : "",
+  "O1" : "",
+  "O0" : "",
+  "Os" : "",
+  "Oz" : ""
 }
